@@ -1,66 +1,141 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+Aplikasi Peminjaman Buku
+Aplikasi web berbasis Laravel untuk mengelola data buku dan peminjaman buku perpustakaan sekolah.
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Deskripsi Program
+Aplikasi ini mencatat data buku, data pengguna, dan transaksi peminjaman. Ada dua jenis pengguna, ditentukan kolom role pada tabel users:
 
-## About Laravel
+admin: mengelola data buku dan peminjaman.
+siswa (default): pengguna yang meminjam buku. Memiliki data kelas.
+Alur peminjaman:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Siswa meminjam buku, lalu sistem membuat data loans dengan loan_date, due_date, dan status bawaan dipinjam.
+Saat buku dikembalikan, returned_at diisi tanggal pengembalian dan status diperbarui.
+Jika pengembalian melewati due_date, denda dicatat pada kolom fine.
+Status pengerjaan saat ini: struktur database (migration) dan model sudah dibuat. Route baru berisi halaman awal, sedangkan controller untuk buku dan peminjaman belum dibuat.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Fitur
+Books: data buku (judul, penulis, penerbit, tahun, stok).
+Loans: data peminjaman (tanggal pinjam, batas kembali, tanggal kembali, status, denda).
+Users: pengguna dengan peran dan kelas.
+Teknologi
+PHP & Laravel
+MySQL (XAMPP)
+Composer
+ERD
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Dokumentasi Fungsi / Prosedur
+Model Book (app/Models/Book.php)
+Elemen	Jenis	Keterangan
+$fillable	properti	Kolom yang boleh diisi massal: title, author, publisher, year, stock.
+Model Loan (app/Models/Loan.php)
+Elemen	Jenis	Parameter	Return	Keterangan
+$fillable	properti	-	-	user_id, book_id, loan_date, due_date, returned_at, status, fine.
+$casts	properti	-	-	loan_date, due_date, returned_at otomatis menjadi objek tanggal (Carbon).
+user()	fungsi relasi	-	BelongsTo	Mengambil user peminjam melalui user_id. Contoh: $loan->user->name.
+book()	fungsi relasi	-	BelongsTo	Mengambil buku yang dipinjam melalui book_id. Contoh: $loan->book->title.
+Model User (app/Models/User.php)
+Elemen	Jenis	Parameter	Return	Keterangan
+$fillable	properti	-	-	name, email, password, role, kelas.
+$hidden	properti	-	-	password dan remember_token disembunyikan saat data diubah ke array/JSON.
+casts()	fungsi	-	array	email_verified_at menjadi datetime, password otomatis di-hash.
+isAdmin()	fungsi	-	bool	true jika role bernilai admin, selain itu false.
+Route (routes/web.php)
+Method	URL	Proses	Output
+GET	/	Menjalankan closure	Menampilkan view welcome
+Debugging
+Temuan pada kode saat ini
+No	Masalah	Dampak	Perbaikan
+1	Model Book belum punya relasi ke Loan.	$book->loans menghasilkan error karena relasi tidak ditemukan.	Tambahkan hasMany (lihat di bawah).
+2	Model User belum punya relasi ke Loan.	$user->loans tidak bisa dipakai untuk riwayat pinjam siswa.	Tambahkan hasMany (lihat di bawah).
+3	Belum ada controller dan route untuk books dan loans.	Fitur belum bisa diakses dari browser.	Buat BookController dan LoanController, lalu daftarkan di routes/web.php.
+4	Nilai status ditulis sebagai string bebas.	Mudah typo (dikembalikan vs dikembalikan ) sehingga filter tidak cocok.	Gunakan konstanta atau enum PHP.
+5	Stok belum terhubung dengan peminjaman.	Stok bisa tidak sinkron atau minus.	Kurangi stok saat pinjam, tambah saat kembali, di dalam DB::transaction().
+Perbaikan temuan 1 dan 2:
 
-## Learning Laravel
+// app/Models/Book.php
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+public function loans(): HasMany
+{
+    return $this->hasMany(Loan::class);
+}
+// app/Models/User.php
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+public function loans(): HasMany
+{
+    return $this->hasMany(Loan::class);
+}
+Error umum dan solusinya
+Error	Penyebab	Solusi
+Base table or view not found / Failed to open the referenced table saat migrate	Migration loans berjalan sebelum users atau books karena timestamp nama file lebih awal.	Pastikan nama file migration loans punya timestamp paling akhir, lalu php artisan migrate:fresh.
+SQLSTATE[23000]: Integrity constraint violation	user_id atau book_id yang dimasukkan tidak ada di tabel induk.	Pastikan data user dan buku sudah ada sebelum membuat peminjaman.
+MassAssignmentException	Kolom belum ada di $fillable.	Tambahkan kolom ke $fillable pada model.
+Call to undefined relationship	Relasi belum didefinisikan di model.	Tambahkan fungsi relasi (lihat perbaikan di atas).
+Class "App\Models\Loan" not found	Namespace atau nama file salah.	Cek namespace dan nama file, lalu composer dump-autoload.
+Cara melacak bug
+Cetak nilai variabel: dd($loan); atau dump($request->all());
+Catat ke log: Log::info('data pinjam', $data);, lalu baca storage/logs/laravel.log.
+Cek daftar route: php artisan route:list
+Cek status migration: php artisan migrate:status
+Uji model lewat console: php artisan tinker, misalnya App\Models\Loan::with('user','book')->first();
+Aktifkan APP_DEBUG=true di .env saat pengembangan agar pesan error lengkap tampil.
+Instalasi
+Clone repository
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+git clone https://github.com/kalilasyifazzahra/peminjaman-buku.git
+cd peminjaman-buku
+Install dependency
 
-## Laravel Sponsors
+composer install
+Salin file environment dan generate key
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+cp .env.example .env
+php artisan key:generate
+Buat database (misalnya peminjaman_buku) di phpMyAdmin, lalu atur .env
 
-### Premium Partners
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=peminjaman_buku
+DB_USERNAME=root
+DB_PASSWORD=
+Jalankan migrasi
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+php artisan migrate
+Jalankan aplikasi
 
-## Contributing
+php artisan serve
+Buka http://127.0.0.1:8000 di browser.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Database
+File database tersedia di database/peminjaman_buku.sql. Import lewat phpMyAdmin (tab Import), atau jalankan php artisan migrate.
 
-## Code of Conduct
+Laporan Evaluasi
+Tujuan
+Membuat aplikasi berbasis Laravel untuk mengelola data buku dan transaksi peminjaman buku perpustakaan.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Hasil yang Dicapai
+Perancangan database: tabel users, books, dan loans beserta ERD (relasi one-to-many).
+Migration dan model Book, Loan, User, dengan relasi Loan ke User dan Book.
+Pembedaan peran pengguna lewat kolom role (admin dan siswa).
+Dokumentasi: deskripsi program, dokumentasi fungsi, dan panduan debugging.
+File database database/peminjaman_buku.sql.
+Project tersimpan di GitHub.
+Kendala
+Push ke GitHub sempat gagal (Repository not found dan rejected), diselesaikan dengan memperbaiki remote dan git pull --rebase.
+Urutan migration perlu dicek agar tabel loans dibuat setelah users dan books.
+Kekurangan
+Controller, route, dan tampilan untuk books dan loans belum dibuat.
+Relasi loans() pada model Book dan User belum ada.
+Logika stok dan perhitungan denda belum diimplementasikan.
+Belum ada pengujian fitur.
+Rencana Perbaikan
+Tambahkan relasi hasMany pada Book dan User.
+Buat BookController (CRUD) dan LoanController (pinjam, kembali, denda).
+Kurangi stok saat pinjam dan tambah saat kembali, di dalam DB::transaction().
+Gunakan konstanta atau enum untuk status.
+Tambahkan login dan pembatasan akses admin lewat isAdmin().
+Kesimpulan
+Fondasi aplikasi (struktur database, model, dan dokumentasi) sudah selesai. Tahap berikutnya adalah mengimplementasikan fitur utama agar aplikasi dapat digunakan.
 
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
