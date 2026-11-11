@@ -1,4 +1,4 @@
-📚 Sistem Peminjaman Buku Perpustakaan
+Sistem Peminjaman Buku Perpustakaan
  
 Aplikasi web berbasis Laravel untuk membantu perpustakaan sekolah mengelola koleksi buku dan transaksi peminjaman oleh siswa.
  
